@@ -1,0 +1,8 @@
+{
+  "HOST": "127.0.0.1",
+  "PORT": 3306,
+  "USERNAME": "root",
+  "PWD": "123456",
+  "DATABASE": "pipe",
+  "UPLOAD_FOLDER":""
+}

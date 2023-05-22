@@ -1,23 +1,26 @@
+import json
 import os
 import time
 from flask import Flask, abort, redirect, request, url_for
 import ffmpeg
+from database import db_session, init_db
+from models import Mark
 
-UPLOAD_FOLDER = '/Users/xzjs/Code/Html/pipe/public'
 ALLOWED_EXTENSIONS = {'mp4'}
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config.from_file("config.json", load=json.load)
+init_db()
 
 
-@app.route("/")
-def hello_world():
-    return "<p>Hello, World!</p>"
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    db_session.remove()
 
 
 @app.route("/api/extract", methods=['POST'])
 def extract():
     data = request.get_json()
-    path = os.path.join(UPLOAD_FOLDER, data['path'])
+    path = os.path.join(app.config['UPLOAD_FOLDER'], data['path'])
     current_time = data['current_time']
     probe = ffmpeg.probe(path)
     r_frame_rate = probe['streams'][0]['r_frame_rate'].split('/')
@@ -28,7 +31,7 @@ def extract():
         ffmpeg
         .input(path)
         .filter('select', 'gte(n,{})'.format(frame_num))
-        .output(os.path.join(UPLOAD_FOLDER, output), vframes=1, format='image2', vcodec='mjpeg')
+        .output(os.path.join(app.config['UPLOAD_FOLDER'], output), vframes=1, format='image2', vcodec='mjpeg')
         .run()
     )
     return {"img_path": output}
@@ -49,3 +52,19 @@ def upload_file():
             file.save(save_path)
             return {"path": filename}
     abort(400)
+
+
+@app.route("/api/mark", methods=['POST'])
+def mark_post():
+    data = request.get_json()
+    src = data['src']
+    flaw = data['flaw']
+    level = data['level']
+    x = data['x']
+    y = data['y']
+    width = data['width']
+    height = data['height']
+    mark = Mark(src, flaw, level, x, y, width, height)
+    db_session.add(mark)
+    db_session.commit()
+    return {"msg": 'ok'}

@@ -1,0 +1,4 @@
+pymysql
+flask-sqlalchemy
+flask
+python-ffmpeg
