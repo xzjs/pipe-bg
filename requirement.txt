@@ -1,4 +1,8 @@
 pymysql
 flask-sqlalchemy
-flask
-python-ffmpeg
+Flask
+ffmpeg-python
+opencv_python
+cryptography
+SQLAlchemy
+SQLAlchemy-serializer

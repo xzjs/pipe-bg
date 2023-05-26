@@ -1,40 +1,50 @@
 import json
 import os
 import time
-from flask import Flask, abort, redirect, request, url_for
+from flask import Flask, abort, jsonify, redirect, request, url_for
 import ffmpeg
-from database import db_session, init_db
-from models import Mark
+from sqlalchemy import create_engine, select
+from models import Mark, Video, Img, Base
+import cv2
+from sqlalchemy.orm import Session
 
 ALLOWED_EXTENSIONS = {'mp4'}
 app = Flask(__name__)
 app.config.from_file("config.json", load=json.load)
-init_db()
-
-
-@app.teardown_appcontext
-def shutdown_session(exception=None):
-    db_session.remove()
+SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{app.config['USERNAME']}:{app.config['PWD']}@{app.config['HOST']}:{app.config['PORT']}/{app.config['DATABASE']}?charset=utf8mb4"
+engine = create_engine(SQLALCHEMY_DATABASE_URI)
+Base.metadata.create_all(bind=engine)
 
 
 @app.route("/api/extract", methods=['POST'])
 def extract():
     data = request.get_json()
-    path = os.path.join(app.config['UPLOAD_FOLDER'], data['path'])
-    current_time = data['current_time']
-    probe = ffmpeg.probe(path)
-    r_frame_rate = probe['streams'][0]['r_frame_rate'].split('/')
-    frame_rate = int(r_frame_rate[0])/int(r_frame_rate[1])
-    frame_num = int(current_time*frame_rate)
-    output = "%d.jpg" % time.time()
-    (
-        ffmpeg
-        .input(path)
-        .filter('select', 'gte(n,{})'.format(frame_num))
-        .output(os.path.join(app.config['UPLOAD_FOLDER'], output), vframes=1, format='image2', vcodec='mjpeg')
-        .run()
-    )
-    return {"img_path": output}
+    video_id = data['video_id']
+    with Session(engine) as session:
+        video = session.scalars(
+            select(Video).where(Video.id == video_id)).first()
+        path = os.path.join(app.config['VIDEO_FOLDER'], video.src)
+        current_time = data['current_time']
+        probe = ffmpeg.probe(path)
+        video_info = next(
+            s for s in probe['streams'] if s['codec_type'] == 'video')
+        width = int(video_info['width'])
+        height = int(video_info['height'])
+        r_frame_rate = probe['streams'][0]['r_frame_rate'].split('/')
+        frame_rate = int(r_frame_rate[0])/int(r_frame_rate[1])
+        frame_num = int(current_time*frame_rate)
+        output = "%d.jpg" % time.time()
+        (
+            ffmpeg
+            .input(path)
+            .filter('select', 'gte(n,{})'.format(frame_num))
+            .output(os.path.join(app.config['IMG_FOLDER'], output), vframes=1, format='image2', vcodec='mjpeg')
+            .run()
+        )
+        img = Img(output, video_id, width=width, height=height)
+        session.add(img)
+        session.commit()
+        return jsonify(img.to_dict())
 
 
 def allowed_file(filename):
@@ -48,9 +58,13 @@ def upload_file():
         file = request.files['file']
         if file.filename and allowed_file(file.filename):
             filename = '%d.mp4' % time.time()
-            save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            save_path = os.path.join(app.config['VIDEO_FOLDER'], filename)
             file.save(save_path)
-            return {"path": filename}
+            video = Video(src=filename)
+            with Session(engine) as session:
+                session.add(video)
+                session.commit()
+                return jsonify(video.to_dict())
     abort(400)
 
 
@@ -64,7 +78,17 @@ def mark_post():
     y = data['y']
     width = data['width']
     height = data['height']
-    mark = Mark(src, flaw, level, x, y, width, height)
-    db_session.add(mark)
-    db_session.commit()
-    return {"msg": 'ok'}
+    img_id = data['img_id']
+
+    with Session(engine) as session:
+        imgObj = session.scalars(select(Img).where(Img.id == img_id)).first()
+        img = cv2.imread(os.path.join(app.config['IMG_FOLDER'], imgObj.src))
+        pt1 = (x, y)
+        pt2 = (x+width, y+height)
+        cv2.rectangle(img, pt1, pt2, (0, 0, 255), 1)
+        name = "%d.jpg" % time.time()
+        cv2.imwrite(os.path.join(app.config['MARK_FOLDER'], name), img)
+        mark = Mark(name, flaw, level, x, y, width, height, img_id)
+        session.add(mark)
+        session.commit()
+        return jsonify(mark.to_dict())
