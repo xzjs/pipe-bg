@@ -6,3 +6,4 @@ opencv_python
 cryptography
 SQLAlchemy
 SQLAlchemy-serializer
+python-docx
