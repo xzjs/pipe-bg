@@ -7,3 +7,4 @@ cryptography
 SQLAlchemy
 SQLAlchemy-serializer
 python-docx
+gunicorn
