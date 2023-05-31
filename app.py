@@ -133,7 +133,7 @@ def report_post():
                 key = detail_keys[j]
                 cell.text = str(detail[key])
             cell = table.cell(base_index+i, j+1)
-            cell.text = i+1  # 单独写图片编号
+            cell.text = str(i+1)  # 单独写图片编号
             position = img_position[i]
             cell = table.cell(position[0], position[1])
             cell.paragraphs[0].clear()
@@ -177,4 +177,4 @@ def ocr():
     imgs = [open(app.config['SAVE_FOLDER'] + img['src'], "rb").read()
             for img in data]
     ocr_result = get_ocr_result(imgs)
-    print(ocr_result)
+    return jsonify(ocr_result)
