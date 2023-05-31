@@ -8,3 +8,4 @@ SQLAlchemy
 SQLAlchemy-serializer
 python-docx
 gunicorn
+requests
