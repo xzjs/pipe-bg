@@ -9,6 +9,7 @@ import cv2
 from sqlalchemy.orm import Session
 from docx import Document
 from docx.shared import Inches
+from getOcr import get_ocr_result
 
 ALLOWED_EXTENSIONS = {'mp4'}
 app = Flask(__name__)
@@ -109,9 +110,8 @@ def report_post():
     report_keys = ['no', 'method', 'file', 'start_no', 'end_no', 'time', 'start_depth', 'end_depth', 'type', 'material', 'diameter', 'direction',
                    'pipe_length', 'detection_length', 'repair_index', 'maintenance_index', 'inspection_personnel', 'detection_site', 'detection_date', 'remark']
     detail_keys = ['distance', 'flaw', 'score', 'level',
-                   'description', 'description', 'position', 'img_id']  # description占了两列
+                   'description', 'description', 'position']  # description占了两列
     img_position = [(12, 0), (12, 5), (14, 0), (14, 5)]
-    name_position = [(13, 0), (13, 5), (15, 0), (15, 5)]
     details = data['detail']
     doc = Document(app.config['SAVE_FOLDER'] + '/doc.docx')
     for key in report_keys:
@@ -132,14 +132,13 @@ def report_post():
                 cell = table.cell(base_index+i, j)
                 key = detail_keys[j]
                 cell.text = str(detail[key])
+            cell = table.cell(base_index+i, j+1)
+            cell.text = i+1  # 单独写图片编号
             position = img_position[i]
             cell = table.cell(position[0], position[1])
             cell.paragraphs[0].clear()
             cell.paragraphs[0].add_run().add_picture(
                 app.config['SAVE_FOLDER']+detail['src'], width=Inches(2))
-            position = name_position[i]
-            cell = table.cell(position[0], position[1])
-            cell.paragraphs[0].text ='图片'+str(detail['img_id'])
 
     name = '/%d.docx' % time.time()
     doc.save(app.config['SAVE_FOLDER']+name)
@@ -170,3 +169,12 @@ def replace_text_img(doc, old_word, new_word):
                     else:
                         # 替换为文本
                         cell.text = str(value)
+
+
+@app.route("/api/ocr", methods=['POST'])
+def ocr():
+    data = request.get_json()
+    imgs = [open(app.config['SAVE_FOLDER'] + img['src'], "rb").read()
+            for img in data]
+    ocr_result = get_ocr_result(imgs)
+    print(ocr_result)
