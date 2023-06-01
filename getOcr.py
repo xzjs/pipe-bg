@@ -1,7 +1,7 @@
 import base64
-import os
 import re
 import requests
+import threading
 
 url = "http://hz.api.ydocr.com/ocr"
 
@@ -39,6 +39,8 @@ json_data = {
     "signatureMethod": "secretKey",
 }
 
+lock = threading.Lock()
+result_list = []
 
 def ocr_url(img):
     result = []
@@ -56,12 +58,19 @@ def transform(dict):
             result[result_dic2[key]] = value
     return result
 
+def get_url(image,num):
+    result = ocr_url(image[num])
+    with lock:
+       result_list.extend(result)
 
 def get_ocr_result(image):
-    result_list = []
+    threads = []
     for i in range(len(image)):
-        result = ocr_url(image[i])
-        result_list.extend(result)
+        thread = threading.Thread(target=get_url,args=(image,i))
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
     if len(result_list) > 0:
         for key in result_dic:
             if key == '距离':
