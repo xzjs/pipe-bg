@@ -17,6 +17,7 @@ result_dic = {
     '管道类型': "",
     '管道直径': "",
     '距离': [],
+    '位置': [],
 }
 
 result_dic2 = {
@@ -30,6 +31,7 @@ result_dic2 = {
     '管道类型': "type",
     '管道直径': "diameter",
     '距离': "distance",
+    '位置': "localization",
 }
 
 json_data = {
@@ -41,6 +43,9 @@ json_data = {
 
 lock = threading.Lock()
 result_list = []
+result_url = ['']*10
+width_threshold  = 500
+height_threshold  = 80
 
 def ocr_url(img):
     result = []
@@ -59,33 +64,38 @@ def transform(dict):
     return result
 
 def get_url(image,num):
-    result = ocr_url(image[num])
-    with lock:
-       result_list.extend(result)
+    result_url[num] = ocr_url(image[num])
 
+    key = '距离'
+    for i in range(len(result_url[num])):
+        is_match = re.match(key, result_url[num][i]['text'])
+        if is_match:
+            if result_url[num][i]['text'][len(key)] == '：':
+                result_dic[key][num] = result_url[num][i]['text'][len(key)+1:]
+            else:
+                result_dic[key][num] = result_url[num][i]['text'][len(key):]
+        if result_url[num][i]['polygon'][0][0] > width_threshold and result_url[num][i]['polygon'][0][1] < height_threshold:
+            result_dic['位置'][num] = result_url[num][i]['text']
+    with lock:
+       result_list.extend(result_url[num])
+
+       
 def get_ocr_result(image):
     threads = []
+    result_dic['位置'] = ['']*len(image)
+    result_dic['距离'] = ['']*len(image)
     for i in range(len(image)):
         thread = threading.Thread(target=get_url,args=(image,i))
         thread.start()
         threads.append(thread)
     for thread in threads:
         thread.join()
+
     if len(result_list) > 0:
         for key in result_dic:
-            if key == '距离':
-                for i in range(len(result_list)):
-                    is_match = re.match(key, result_list[i]['text'])
-                    if is_match:
-                        if result_list[i]['text'][len(key)] == '：':
-                            result_dic[key].append(
-                                result_list[i]['text'][len(key)+1:])
-                        else:
-                            result_dic[key].append(
-                                result_list[i]['text'][len(key):])
-            else:
-                max_confidence = 0
-                max_num = 0
+            max_confidence = 0
+            max_num = 0
+            if key != '距离' and key != '位置':
                 for i in range(len(result_list)):
                     is_match = re.match(key, result_list[i]['text'])
                     if is_match:
