@@ -1,3 +1,4 @@
+from copy import deepcopy
 import json
 import os
 import time
@@ -110,35 +111,46 @@ def report_post():
     report_keys = ['no', 'method', 'file', 'start_no', 'end_no', 'time', 'start_depth', 'end_depth', 'type', 'material', 'diameter', 'direction',
                    'pipe_length', 'detection_length', 'repair_index', 'maintenance_index', 'inspection_personnel', 'detection_site', 'detection_date', 'remark']
     detail_keys = ['distance', 'flaw', 'score', 'level',
-                   'description', 'description', 'position']  # description占了两列
-    img_position = [(12, 0), (12, 5), (14, 0), (14, 5)]
+                   'description', 'description', 'description', 'description']  # description占了四列
     details = data['detail']
     doc = Document(app.config['SAVE_FOLDER'] + '/doc.docx')
+    table = doc.tables[0]
     for key in report_keys:
-        for paragraph in doc.paragraphs:
-            paragraph.text = paragraph.text.replace(key, str(data[key]))
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    text = cell.text.strip()
-                    if text == key:
-                        cell.text = data[key]
+        for row in table.rows:
+            for cell in row.cells:
+                text = cell.text.strip()
+                if text == key:
+                    cell.text = data[key]
 
-    for table in doc.tables:
-        base_index = 7
-        for i in range(len(details)):
-            detail = details[i]
-            for j in range(len(detail_keys)):
-                cell = table.cell(base_index+i, j)
-                key = detail_keys[j]
-                cell.text = str(detail[key])
-            cell = table.cell(base_index+i, j+1)
-            cell.text = str(i+1)  # 单独写图片编号
-            position = img_position[i]
-            cell = table.cell(position[0], position[1])
-            cell.paragraphs[0].clear()
-            cell.paragraphs[0].add_run().add_picture(
-                app.config['SAVE_FOLDER']+detail['src'], width=Inches(2))
+    detail_index = 7
+    length = len(details)
+    if length > 1:  # 复制详情
+        for i in range(length-1):
+            newrow = deepcopy(table.rows[detail_index])
+            table.rows[detail_index]._tr.addnext(newrow._element)
+    img_index = 9+length-1
+    if length > 2:  # 复制图片
+        for i in range(length//2):
+            img_row = deepcopy(table.rows[img_index])
+            label_row = deepcopy(table.rows[img_index+1])
+            table.rows[img_index]._tr.addnext(img_row._element)
+            table.rows[img_index]._tr.addnext(label_row._element)
+
+    for i in range(len(details)):
+        detail = details[i]
+        for j in range(len(detail_keys)):
+            cell = table.cell(detail_index+i, j)
+            key = detail_keys[j]
+            cell.text = str(detail[key])
+        cell = table.cell(detail_index+i, j+1)
+        cell.text = str(i+1)  # 单独写图片编号
+        cell = table.cell(img_index+(i//2)*2, (i % 2)*5)
+        cell.paragraphs[0].clear()
+        cell.paragraphs[0].add_run().add_picture(
+            app.config['SAVE_FOLDER']+detail['src'], width=Inches(3.5))
+        cell = table.cell(img_index+(i//2)*2+1, (i % 2)*5)
+        cell.paragraphs[0].clear()
+        cell.paragraphs[0].text = f"图片{i+1}"
 
     name = '/%d.docx' % time.time()
     doc.save(app.config['SAVE_FOLDER']+name)
