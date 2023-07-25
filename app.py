@@ -102,6 +102,9 @@ def mark_post():
 def video_get(id):
     with Session(engine) as session:
         video = session.scalars(select(Video).where(Video.id == id)).first()
+        for img in video.imgs:
+            if img.mark == None:
+                video.imgs.remove(img)
         return jsonify(video.to_dict())
 
 
