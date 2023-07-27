@@ -43,7 +43,7 @@ json_data = {
 
 lock = threading.Lock()
 result_list = []
-result_url = ['']*10
+result_url = ['']*1000
 width_threshold  = 500
 height_threshold  = 80
 
